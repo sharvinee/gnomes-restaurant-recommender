@@ -2,6 +2,17 @@
 <html>
 <head>
     <title>Dallas Restaurant Jackpot</title>
+    <script>
+        try {
+            if (window.sessionStorage.getItem("restaurantLandingSeen") === "1") {
+                document.documentElement.classList.add("skip-landing");
+            } else {
+                document.documentElement.classList.add("landing-active");
+            }
+        } catch (error) {
+            document.documentElement.classList.add("landing-active");
+        }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         @font-face {
@@ -88,6 +99,19 @@
             gap: 14px;
             position: relative;
             z-index: 1;
+            transition: opacity 0.28s ease, transform 0.28s ease;
+        }
+
+        .landing-active .page {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(12px);
+        }
+
+        .skip-landing .page {
+            opacity: 1;
+            pointer-events: auto;
+            transform: none;
         }
 
         .title {
@@ -532,6 +556,85 @@
             box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
         }
 
+        .landing-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 40;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: #000;
+            color: #fff;
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+            transition: opacity 0.28s ease, visibility 0.28s ease;
+        }
+
+        .landing-active .landing-overlay {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .skip-landing .landing-overlay {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .landing-overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .landing-card {
+            width: min(100%, 90vw);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            text-align: center;
+            font-family: "Courier New", Courier, monospace;
+        }
+
+        .landing-title {
+            margin: 0;
+            font-family: "Courier New", Courier, monospace;
+            font-size: clamp(2.2rem, 5.5vw, 4.2rem);
+            line-height: 1.12;
+            letter-spacing: 0.04em;
+            color: #f5f5f5;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .landing-disclaimer {
+            margin: 10px 0 0;
+            max-width: 520px;
+            font-size: 0.9rem;
+            line-height: 1.45;
+            letter-spacing: 0.03em;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .landing-status {
+            margin: 0;
+            font-size: 0.76rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.52);
+        }
+
+        .landing-countdown {
+            margin: 4px 0 0;
+            font-size: 0.9rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.82);
+        }
+
         @media (max-width: 700px) {
             body {
                 padding: 14px;
@@ -578,6 +681,14 @@
     </style>
 </head>
 <body>
+    <div id="landing-overlay" class="landing-overlay" role="alertdialog" aria-modal="true" aria-labelledby="landing-title" aria-describedby="landing-disclaimer">
+        <div class="landing-card">
+            <h2 id="landing-title" class="landing-title">⚠️ YOU HAVE BEEN HACKED! ⚠️</h2>
+            <p id="landing-disclaimer" class="landing-disclaimer">We have successfully gained administrative access to your device. All your personal files, including photos, private messages, and saved passwords, have been encrypted using an unbreakable algorithm. A copy of your data has been uploaded to our secure offshore servers. To regain access to your files, you are required to pay a decryption fee of 0.05 BTC to the following wallet address:
+bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh . Failure to comply within 24 hours will result in the permanent deletion of your data and the distribution of your private information to your contact list. This is a hoax. You will be redirected to the real app soon. Did your Mama not tell you not to scan random QR codes? Maybe, because that's why you are here. DO NOT close this window. DO NOT restart your device.</p>
+            <p id="landing-countdown" class="landing-countdown">The countdown begins in 10 seconds...</p>
+        </div>
+    </div>
     <div id="food-bg-layer" class="food-bg-layer" aria-hidden="true"></div>
     <div class="page">
         <h1 class="title">I'm in Dallas and IDK Where to Eat</h1>
@@ -674,15 +785,93 @@
         const titleEl = document.getElementById("result-title");
         const descEl = document.getElementById("result-description");
         const chipsEl = document.getElementById("result-chips");
+        const landingOverlay = document.getElementById("landing-overlay");
 
         const REPEAT_LOOPS = 10;
         const STREAMER_COLORS = ["#74c9ff", "#f7d978", "#fda085", "#86efac", "#f9a8d4", "#c4b5fd"];
         const FOOD_ICONS = ["🍔", "🍕", "🍟", "🍣", "🍜", "🌮", "🍩", "🍇", "🍓", "🍉", "🍍", "🥑", "🥦", "🥕", "🌽", "🍅"];
         const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
         const initialRestaurants = {{ restaurants | tojson }};
+        const landingKey = "restaurantLandingSeen";
+        const landingCountdownEl = document.getElementById("landing-countdown");
         let candidates = Array.isArray(initialRestaurants) ? initialRestaurants : [];
         let spinning = false;
         let celebrationTimer = null;
+        let landingTimer = null;
+        let landingCountdownTimer = null;
+        let landingRemainingSeconds = 10;
+
+        function readLandingSeen() {
+            try {
+                return window.sessionStorage.getItem(landingKey) === "1";
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function markLandingSeen() {
+            try {
+                window.sessionStorage.setItem(landingKey, "1");
+            } catch (error) {
+                return;
+            }
+        }
+
+        function revealApp() {
+            document.documentElement.classList.remove("landing-active");
+            document.documentElement.classList.add("skip-landing");
+
+            if (landingCountdownTimer) {
+                clearInterval(landingCountdownTimer);
+                landingCountdownTimer = null;
+            }
+
+            if (landingTimer) {
+                clearTimeout(landingTimer);
+                landingTimer = null;
+            }
+
+            if (landingOverlay) {
+                landingOverlay.classList.add("hidden");
+                window.setTimeout(() => {
+                    landingOverlay.remove();
+                }, 320);
+            }
+        }
+
+        function updateLandingCountdown() {
+            if (landingCountdownEl) {
+                landingCountdownEl.textContent = `The countdown begins in ${landingRemainingSeconds} seconds...`;
+            }
+        }
+
+        function startLandingGate() {
+            if (readLandingSeen()) {
+                revealApp();
+                return;
+            }
+
+            markLandingSeen();
+            updateLandingCountdown();
+
+            landingCountdownTimer = window.setInterval(() => {
+                landingRemainingSeconds -= 1;
+                if (landingRemainingSeconds <= 0) {
+                    landingRemainingSeconds = 0;
+                    updateLandingCountdown();
+                    revealApp();
+                    return;
+                }
+
+                updateLandingCountdown();
+            }, 1000);
+
+            landingTimer = window.setTimeout(() => {
+                landingRemainingSeconds = 0;
+                updateLandingCountdown();
+                revealApp();
+            }, 10000);
+        }
 
         function renderFoodBackground() {
             if (!foodBgLayer) {
@@ -958,6 +1147,7 @@
             }
         });
 
+        startLandingGate();
         renderFoodBackground();
         drawIdleReel(candidates);
     </script>
