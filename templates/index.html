@@ -611,6 +611,20 @@
             text-transform: uppercase;
             word-wrap: break-word;
             overflow-wrap: break-word;
+            animation: fake-alert-blink 0.65s step-end infinite;
+        }
+
+        @keyframes fake-alert-blink {
+            0%,
+            47%,
+            100% {
+                opacity: 1;
+            }
+
+            48%,
+            52% {
+                opacity: 0.2;
+            }
         }
 
         .landing-disclaimer {
@@ -718,6 +732,10 @@
             .streamer {
                 animation: none;
                 opacity: 0;
+            }
+
+            .landing-title {
+                animation: none;
             }
         }
     </style>
